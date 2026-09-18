@@ -143,6 +143,15 @@ class ZoneSpecBuilder:
                 )
 
         if create_reverse_zones:
+            reverse_policy = self._update_policy_service.normalize(
+                raw_policy=raw_zone.get("reverse_update_policy"),
+                zone_name=zone_name,
+                zone_type=zone_type,
+                allow_update_present=False,
+            )
+            reverse_dynamic = bool(reverse_policy) or self._has_non_empty_value(
+                raw_zone.get("reverse_allow_updates", raw_zone.get("allow_updates"))
+            )
             for network in self._normalize_ipv4_networks(raw_zone.get("networks", ())):
                 reverse_name = self._ipv4_reverse_zone_name(network)
                 reverse_filename = (
@@ -157,7 +166,7 @@ class ZoneSpecBuilder:
                         filename=reverse_filename,
                         primaries=tuple(primaries),
                         forwarders=tuple(forwarders),
-                        update_policy=None,
+                        update_policy=reverse_policy if zone_type == "primary" else None,
                     )
                 )
 
@@ -169,7 +178,7 @@ class ZoneSpecBuilder:
                             zone_type=zone_type,
                             state=state,
                             network=network,
-                            dynamic_updates=dynamic_updates,
+                            dynamic_updates=reverse_dynamic,
                         )
                     )
 
@@ -189,7 +198,7 @@ class ZoneSpecBuilder:
                         filename=reverse_filename,
                         primaries=tuple(primaries),
                         forwarders=tuple(forwarders),
-                        update_policy=None,
+                        update_policy=reverse_policy if zone_type == "primary" else None,
                     )
                 )
 
@@ -201,7 +210,7 @@ class ZoneSpecBuilder:
                             zone_type=zone_type,
                             state=state,
                             network=network,
-                            dynamic_updates=dynamic_updates,
+                            dynamic_updates=reverse_dynamic,
                         )
                     )
 

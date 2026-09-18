@@ -18,6 +18,10 @@ bind_update_keys: []
 #    algorithm: hmac-sha256
 #    secret: "azertyAZERTY123456"
 
+# Local authoritative endpoint for reconciling inventory PTR records.
+bind_reverse_update_server: "127.0.0.1"
+bind_reverse_update_port: 53
+
 # List of IPv4 address of the network interface(s) to listen on. Set to "any"
 # to listen on all interfaces
 bind_listen:

@@ -424,3 +424,30 @@ Please read [Contribution](CONTRIBUTING.md)
 [Apache](LICENSE)
 
 **FREE SOFTWARE, HELL YEAH!**
+
+### Inventory records in dynamic reverse zones
+
+Reverse zones use `reverse_update_policy` or `reverse_allow_updates`, falling
+back to `allow_updates` only when the reverse ACL is omitted. A forward
+`update_policy` does not apply to reverse zones. An explicit empty reverse ACL
+keeps the reverse zone static when no reverse policy is present.
+
+Existing dynamic zone files and journals are preserved. After starting BIND and
+loading configuration, the role queries the authoritative server and reconciles
+inventory PTR RRsets using DNS UPDATE. This also repairs records missing from
+the running zone even if an older deployment wrote them only to disk. Records
+at other owners, including DDNS clients, are preserved. At inventory-declared
+owners, the inventory controls the complete PTR RRset and TTL. Removing a host
+from inventory does not delete its previously published PTR; remove that record
+explicitly when retiring the host.
+
+Supply a permitted TSIG key in `bind_update_keys`. Keys named in reverse policy
+grants or effective reverse ACLs are tried; BIND remains responsible for checking
+owner/type permissions. Address-based or named ACLs can authorize unsigned local
+updates. A `local` reverse policy uses `bind_session_keyfile`. Missing credentials,
+refused updates, and non-authoritative query responses fail the deployment.
+
+`bind_reverse_update_server` (default `127.0.0.1`) and
+`bind_reverse_update_port` (default `53`) must point to the primary's listening
+endpoint. Check mode queries the running server and reports pending PTR changes
+without sending updates; the zones must already be loaded for this check.

@@ -12,4 +12,16 @@
 - name: service
   ansible.builtin.include_tasks: service.yml
 
+- name: activate configuration before updating dynamic reverse records
+  ansible.builtin.meta: flush_handlers
+
+- name: reconcile inventory PTR records in dynamic reverse zones
+  become: true
+  bodsch.dns.bind_reverse_records:
+    zones: "{{ bind_zones }}"
+    keys: "{{ bind_update_keys }}"
+    server: "{{ bind_reverse_update_server }}"
+    port: "{{ bind_reverse_update_port }}"
+    session_keyfile: "{{ bind_session_keyfile }}"
+
 ...

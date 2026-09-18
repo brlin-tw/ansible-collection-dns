@@ -376,3 +376,53 @@ def test_reconciler_keeps_journal_for_dynamic_zone(tmp_path: Path) -> None:
     result = reconciler.reconcile((spec,))
     assert result.changes[0].action == "unchanged"
     assert journal_file.exists() is True
+
+
+def test_reverse_policy_is_independent_of_forward_policy():
+    builder = _load_bind_zone_module("builder").ZoneSpecBuilder()
+    base = {
+        "name": "infra.example", "type": "primary",
+        "networks": ["192.168.3"], "ipv6_networks": ["2001:db8::/64"],
+        "name_servers": ["ns1.infra.example."],
+        "hosts": [{"name": "wireguard", "ip": "192.168.3.10"}],
+    }
+    cases = [
+        ({"reverse_update_policy": {"mode": "local"}}, False, True),
+        ({"update_policy": {"mode": "local"}}, True, False),
+        ({"allow_updates": ['key "ddns"']}, True, True),
+        ({"allow_updates": ['key "ddns"'], "reverse_allow_updates": []}, True, False),
+        ({"reverse_allow_updates": ['key "ddns"']}, False, True),
+        ({"reverse_allow_updates": [],
+          "reverse_update_policy": {"mode": "local"}}, False, True),
+    ]
+    for extra, forward_dynamic, reverse_dynamic in cases:
+        result = builder.build([dict(base, **extra)])
+        for spec in result.zone_files:
+            assert spec.dynamic_updates == (
+                forward_dynamic if spec.is_forward else reverse_dynamic
+            )
+        for definition in result.zone_definitions:
+            if definition.name != "infra.example":
+                assert bool(definition.update_policy) == bool(extra.get("reverse_update_policy"))
+
+
+def test_reverse_policy_preserves_existing_file_and_journal(tmp_path):
+    builder = _load_bind_zone_module("builder").ZoneSpecBuilder()
+    reconciler = _load_bind_zone_module("reconciler").ZoneFileReconciler(
+        zone_directory=str(tmp_path / "zones"), cache_directory=str(tmp_path / "cache")
+    )
+    zones = [{
+        "name": "infra.example", "type": "primary", "networks": ["192.168.3"],
+        "reverse_update_policy": {"mode": "local"},
+        "name_servers": ["ns1.infra.example."], "hosts": [],
+    }]
+    reconciler.reconcile(builder.build(zones).zone_files)
+    reverse = tmp_path / "zones" / "3.168.192.in-addr.arpa"
+    original = reverse.read_bytes()
+    journal = reverse.with_suffix(reverse.suffix + ".jnl")
+    journal.write_bytes(b"live DDNS journal")
+    zones[0]["hosts"].append({"name": "wireguard", "ip": "192.168.3.10"})
+    result = reconciler.reconcile(builder.build(zones).zone_files)
+    assert result.dynamic_to_static_zones == ()
+    assert reverse.read_bytes() == original
+    assert journal.read_bytes() == b"live DDNS journal"
